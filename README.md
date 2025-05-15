@@ -142,7 +142,7 @@ Then configure your IMAP client to connect to `localhost:10143` instead of `mail
     - Verifies that the proxy connects securely, patches BODYSTRUCTURE responses, and passes through commands correctly.
     - The test connects to the proxy using plaintext (as the proxy does not currently support client-side SSL), while the proxy connects to the mock IMAP server via TLS.
 
-No manual certificate setup is required — the test is fully self-contained and safe to run repeatedly.
+  - No manual certificate setup is required — the test is fully self-contained and safe to run repeatedly.
 
 Run all tests with:
 
