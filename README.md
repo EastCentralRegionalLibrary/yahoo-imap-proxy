@@ -132,6 +132,18 @@ Then configure your IMAP client to connect to `localhost:10143` instead of `mail
 
   - Simulates a mock IMAP server and client, including cancellation (Ctrl+C) to verify graceful shutdown.
 
+- **SSL Integration test**:
+
+  - The test suite includes a full integration test for the proxy's upstream SSL handling:
+
+    - Dynamically generates a temporary self-signed certificate at runtime using openssl.
+    - Spins up a mock SSL-enabled IMAP server on localhost.
+    - Configures the proxy to use SSL for the upstream connection.
+    - Verifies that the proxy connects securely, patches BODYSTRUCTURE responses, and passes through commands correctly.
+    - The test connects to the proxy using plaintext (as the proxy does not currently support client-side SSL), while the proxy connects to the mock IMAP server via TLS.
+
+No manual certificate setup is required — the test is fully self-contained and safe to run repeatedly.
+
 Run all tests with:
 
 ```bash
