@@ -1,0 +1,136 @@
+Delivered-To: someone@notyahoo.com
+Received: by 2002:a05:6022:7215:b0:6b:b564:a76 with SMTP id someid;
+        Wed, 7 May 2025 09:11:43 -0700 (PDT)
+X-notyahoo-Smtp-Source: somenotyahoosource
+X-Received: by 2002:a05:6808:f16:b0:403:50e7:83e1 with SMTP id ansmtpid;
+        Wed, 07 May 2025 09:11:43 -0700 (PDT)
+ARC-Seal: i=1; a=rsa-sha256; t=1746634303; cv=none;
+        d=notyahoo.com; s=arc-20240605;
+        b=ETakEY3EaoHRc9hcOuRd3lV1l311OjLVA8RxrGLjgNfVdNDeBXX4eM46ZFZ14cvDF1
+			dDqSfUScYSG2jAnWnvp5RZPprdxpYLqLWBpBrUwoxJPBJvqd5RumiNPShh6JPb5y3K8i
+			SoDXdFwvEKffB9lgp9R9Z2YsudCM61JvKtGTAUpzB13xrTxM3eUVPAwFcmq9F4aa0ANE
+			JvkzrndlfPr6iVV5Pw49yJZgnysNX5G3ZabKQROAYqeYj1zF7lNG2L0sMkcyEIMtnI8u
+			uaepYZgMwIfkCw4PIJXu7WzxfSY8qMgPwACr8wbey2V4wDND5GtjkXFSyjSL8iWjlLGs
+			C3GA==
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=notyahoo.com; s=arc-20240605;
+        h=references:mime-version:subject:message-id:to:from:date
+         :dkim-signature;
+        bh=UdGUQIn9Tl37hRhOTjU2GUGCjg36AC7lSlvgEdWXK7E=;
+        fh=QbwKr2wNVoJvB9HK/7voNQ40hWZIrBmouENuzZ1L+Jg=;
+        b=ETakEY3EaoHRc9hcOuRd3lV1l311OjLVA8RxrGLjgNfVdNDeBXX4eM46ZFZ14cvDF1
+			dDqSfUScYSG2jAnWnvp5RZPprdxpYLqLWBpBrUwoxJPBJvqd5RumiNPShh6JPb5y3K8i
+			SoDXdFwvEKffB9lgp9R9Z2YsudCM61JvKtGTAUpzB13xrTxM3eUVPAwFcmq9F4aa0ANE
+			JvkzrndlfPr6iVV5Pw49yJZgnysNX5G3ZabKQROAYqeYj1zF7lNG2L0sMkcyEIMtnI8u
+			uaepYZgMwIfkCw4PIJXu7WzxfSY8qMgPwACr8wbey2V4wDND5GtjkXFSyjSL8iWjlLGs
+			C3GA==;
+        dara=notyahoo.com
+ARC-Authentication-Results: i=1; mx.notyahoo.com;
+       dkim=pass header.i=@yahoo.com header.s=s2048 header.b=GrBoZo6+;
+       spf=pass (notyahoo.com: domain of someone@yahoo.com designates 127.0.0.1 as permitted sender) smtp.mailfrom=someone@yahoo.com;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=yahoo.com
+Return-Path: <someone@yahoo.com>
+Received: from sonic301-3.consmr.mail.bf2.yahoo.com (sonic301-3.consmr.mail.bf2.yahoo.com. [127.0.0.1])
+        by mx.notyahoo.com with ESMTPS id someid
+        for <someone@notyahoo.com>
+        (version=TLS1_3 cipher=TLS_AES_128_GCM_SHA256 bits=128/128);
+        Wed, 07 May 2025 09:11:43 -0700 (PDT)
+Received-SPF: pass (notyahoo.com: domain of someone@yahoo.com designates 127.0.0.1 as permitted sender) client-ip=127.0.0.1;
+Authentication-Results: mx.notyahoo.com;
+       dkim=pass header.i=@yahoo.com header.s=s2048 header.b=GrBoZb6+;
+       spf=pass (notyahoo.com: domain of someone@yahoo.com designates 127.0.0.1 as permitted sender) smtp.mailfrom=someone@yahoo.com;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=yahoo.com
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=yahoo.com; s=s2048; t=1746634301; bh=vVqbrTHeqZjElXlHLoIRb2jAMeLpOdIs0xjNKa1QoBE=; h=Date:From:To:Subject:References:From:Subject:Reply-To; b=Sxponwol7vYTzEhuSA05ZJENwVgitwiKEVo695maFMFF5bKc9wzZl8xLt0PpmIFdFqb9c4JbWKHgSc3qPlk34OKcUo6JVxVyJazu20TO4BW0FE0kngICcU4mTp7nDk6jQDSObsUsb3C9egSZBReaZn28IVboQgE1uNm2wAsegoJ2KZY9QQ7aTLxctmkW6s6bmRM9L9ThXjHuNLFwvIfEJNC9zasD5KOb3Oq4RBVqetvpwwJDYBqvUHAjTcLvS0EnZWxiwJrsmvaCfF8M9mVnBkDOPLdCY8Wc7KtSP6kDYGjbO50r97J6Rnq5KnQteUp41SLXEOZpM0Ef8U2LcfXRtZ==
+X-SONIC-DKIM-SIGN: v=1; a=rsa-sha256; c=relaxed/relaxed; d=yahoo.com; s=s2048; t=1746634301; bh=6EpIPWWOQ/BR9PrT811eEzHpRnlJY/eviHSVF5QULhR=; h=X-Sonic-MF:Date:From:To:Subject:From:Subject; b=Sxponwol7vYTzEhuSA05ZJENwVgitwiKEVo695maFMFF5bKc9wzZl8xLt0PpmIFdFqb9c4JbWKHgSc3qPlk34OKcUo6JVxVyJazu20TO4BW0FE0kngICcU4mTp7nDk6jQDSObsUsb3C9egSZBReaZn28IVboQgE1uNm2wAsegoJ2KZY9QQ7aTLxctmkW6s6bmRM9L9ThXjHuNLFwvIfEJNC9zasD5KOb3Oq4RBVqetvpwwJDYBqvUHAjTcLvS0EnZWxiwJrsmvaCfF8M9mVnBkDOPLdCY8Wc7KtSP6kDYGjbO50r97J6Rnq5KnQteUp41SLXEOZpM0Ef8U2LcfXRtZ==
+X-YMail-OSG: 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
+	Tsb3lTfUIX39kcRG4m4l--
+X-Sonic-MF: <someone@yahoo.com>
+X-Sonic-ID: 153b825e-82a7-4542-89db-1822dfc1c963
+Received: from sonic.gate.mail.ne1.yahoo.com by sonic301.consmr.mail.bf2.yahoo.com with HTTP; Wed, 7 May 2025 16:11:41 +0000
+Date: Wed, 7 May 2025 16:11:38 +0000 (UTC)
+From: Yo Mama <someone@yahoo.com>
+To: "someone@notyahoo.com" <someone@notyahoo.com>
+Message-ID: <1533892522.1265378.1746634298304@mail.yahoo.com>
+Subject: test print
+MIME-Version: 1.0
+Content-Type: multipart/mixed; 
+	boundary="----=_Part_1265377_67112557.1746634298304"
+References: <1533892522.1265378.1746634298304.ref@mail.yahoo.com>
+X-Mailer: WebService/1.1.23772 YMailNovation
+Content-Length: 56021
+
+------=_Part_1265377_67112557.1746634298304
+Content-Type: multipart/alternative; 
+	boundary="----=_Part_1265376_1212230726.1746634298240"
+
+------=_Part_1265376_1212230726.1746634298240
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 7bit
+
+test
+------=_Part_1265376_1212230726.1746634298240
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: 7bit
+
+<html><head></head><body><div class="yahoo-style-wrap" style="font-family:Helvetica Neue, Helvetica, Arial, sans-serif;font-size:13px;"><div dir="ltr" data-setdir="false">test</div></div></body></html>
+------=_Part_1265376_1212230726.1746634298240--
+
+------=_Part_1265377_67112557.1746634298304
+Content-Type: image/png
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="emoji.png"
+Content-ID: <97c7494c-a15b-b24b-564d-037e63ddb999@yahoo.com>
+
+iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABHNCSVQICAgIfAhkiAAA
+AAlwSFlzAAAApgAAAKYB3X3/OAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9y
+Z5vuPBoAAANCSURBVEiJtZZPbBtFFMZ/M7ubXdtdb1xSFyeilBapySVU8h8OoFaooFSq
+iihIVIpQBKci6KEg9Q6H9kovIHoCIVQJJCKE1ENFjnAgcaSGC6rEnxBwA04Tx43t2Fnv
+DAfjkNibxgHxnWb2e/u992bee7tCa00YFsffekFY+nUzFtjW0LrvjRXrCDIAaPLlW0nH
+L0SsZtVoaF98mLrx3pdhOqLtYPHChahZcYYO7KvPFxvRl5XPp1sN3adWiD1ZAqD6XYK1
+b/dvE5IWryTt2udLFedwc1+9kLp+vbbpoDh+6TklxBeAi9TL0taeWpdmZzQDry0AcO+j
+Q12RyohqqoYoo8RDwJrU+qXkjWtfi8Xxt58BdQuwQs9qC/afLwCw8tnQbqYAPsgxE1S6
+F3EAIXux2oQFKm0ihMsOF71dHYx+f3NND68ghCu1YIoePPQN1pGRABkJ6Bus96CutRZM
+ydTl+TvuiRW1m3n0eDl0vRPcEysqdXn+jsQPsrHMquGeXEaY4Yk4wxWcY5V/9scqOMOV
+UFthatyTy8QyqwZ+kDURKoMWxNKr2EeqVKcTNOajqKoBgOE28U4tdQl5p5bwCw7BWqua
+ZSzAPlwjlithJtp3pTImSqQRrb2Z8PHGigD4RZuNX6JYj6wj7O4TFLbCO/Mn/m8R+h6r
+YSUb3ekokRY6f/YukArN979jcW+V/S8g0eT/N3VN3kTqWbQ428m9/8k0P/1aIhF36Pcc
+El6EhOcAUCrXKZXXWS3XKd2vc/TRBG9O5ELC17MmWubD2nKhUKZa26Ba2+D3P+4/MNCF
+wg59oWVeYhkzgN/JDR8deKBoD7Y+ljEjGZ0sosXVTvbc6RHirr2reNy1OXd6pJsQ+gqj
+k8VWFYmHrwBzW/n+uMPFiRwHB2I7ih8ciHFxIkd/3Omk5tCDV1t+2nNu5sxxpDFNx+hu
+NhVT3/zMDz8usXC3ddaHBj1GHj/As08fwTS7Kt1HBTmyN29vdwAw+/wbwLVOJ3uAD1wi
+/dUH7Qei66PfyuRj4Ik9is+hglfbkbfR3cnZm7chlUWLdwmprtCohX4HUtlOcQjLYCu+
+fzGJH2QRKvP3UNz8bWk1qMxjGTOMThZ3kvgLI5AzFfo379UAAAAASUVORK5CYII=
+
+------=_Part_1265377_67112557.1746634298304--
