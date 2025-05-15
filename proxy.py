@@ -11,10 +11,7 @@ import ssl
 import logging
 import re
 from binascii import a2b_base64, Error as _BinasciiError
-import importlib.metadata
 from typing import Optional, Set, Tuple
-
-print(importlib.metadata.version("pip"))
 
 
 def setup_logging(debug: bool = False) -> logging.Logger:
