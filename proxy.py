@@ -12,7 +12,7 @@ import logging
 import re
 from binascii import a2b_base64, Error as _BinasciiError
 import importlib.metadata
-from typing import Optional, Tuple
+from typing import Optional, Set, Tuple
 
 print(importlib.metadata.version("pip"))
 
@@ -198,6 +198,7 @@ class IMAPProxy:
         self.remote_port: int = remote_port
         self.use_ssl: bool = use_ssl
         self.logger: logging.Logger = setup_logging(debug)
+        self.active_tasks: Set[asyncio.Task[None]] = set()
 
     async def handle(
         self,
@@ -249,10 +250,29 @@ class IMAPProxy:
         """
         Start listening on the configured port and serve forever.
         """
-        server = await asyncio.start_server(self.handle, "0.0.0.0", self.listen_port)
+
+        async def track_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+            task = asyncio.create_task(self.handle(reader, writer))
+            self.active_tasks.add(task)
+            task.add_done_callback(self.active_tasks.discard)
+
+        server = await asyncio.start_server(track_client, "0.0.0.0", self.listen_port)
         self.logger.info(f"IMAP Proxy listening on 0.0.0.0:{self.listen_port}")
-        async with server:
-            await server.serve_forever()
+        try:
+            async with server:
+                await server.serve_forever()
+        except asyncio.CancelledError:
+            self.logger.info("Shutting down server")
+            server.close()
+            await server.wait_closed()
+
+            # Cancel all active client handler tasks
+            for task in self.active_tasks:
+                task.cancel()
+            await asyncio.gather(*self.active_tasks, return_exceptions=True)
+
+            # now let client handlers see EOF/cancellation
+            raise
 
     def run(self) -> None:
         """

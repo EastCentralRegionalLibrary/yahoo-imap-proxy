@@ -155,7 +155,7 @@ class MockIMAPServer:
 
 
 @pytest.mark.asyncio
-async def test_imap_proxy_integration_with_ctrl_c(monkeypatch):
+async def test_imap_proxy_integration_with_ctrl_c():
     # Setup mock IMAP server
     mock_server = MockIMAPServer(1143)
     await mock_server.start()
