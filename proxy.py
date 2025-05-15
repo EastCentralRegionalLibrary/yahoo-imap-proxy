@@ -6,16 +6,13 @@ and provides structured logging at various levels for monitoring and debugging.
 """
 
 import sys
-import os
 import asyncio
 import ssl
 import logging
 import re
-from email import message_from_bytes, policy
-from email.header import decode_header, make_header
 from binascii import a2b_base64, Error as _BinasciiError
 import importlib.metadata
-from typing import Optional
+from typing import Optional, Tuple
 
 print(importlib.metadata.version("pip"))
 
@@ -25,7 +22,7 @@ def setup_logging(debug: bool = False) -> logging.Logger:
     Configure root logger. If debug is True, set level to DEBUG, else INFO.
     Returns a named logger for the proxy.
     """
-    level = logging.DEBUG if debug else logging.INFO
+    level: int = logging.DEBUG if debug else logging.INFO
     logging.basicConfig(
         level=level,
         format="%(asctime)s - %(levelname)s - %(message)s",
@@ -42,8 +39,10 @@ BODYSTRUCTURE_WITHOUT_NAME_RE = re.compile(
 
 
 def patch_bodystructure_line(
-    line: bytes, attachment_counter: int, logger: logging.Logger
-) -> (bytes, int):
+    line: bytes,
+    attachment_counter: int,
+    logger: logging.Logger,
+) -> Tuple[bytes, int]:
     """
     Inserts a synthetic NAME parameter into any attachment sub-part of a BODYSTRUCTURE
     line that lacks it, preserving all other parameters. Returns the modified line
@@ -57,12 +56,12 @@ def patch_bodystructure_line(
     logger.debug(
         f"Found {len(matches)} attachment(s) with missing NAME in BODYSTRUCTURE"
     )
-    new_line = line
-    offset = 0
+    new_line: bytes = line
+    offset: int = 0
 
     for m in matches:
         start, end = m.span()
-        structure_part = line[start:end]
+        structure_part: bytes = line[start:end]
 
         # Skip any parts that somehow already include a NAME
         if b'"NAME"' in structure_part.upper():
@@ -70,13 +69,13 @@ def patch_bodystructure_line(
             continue
 
         # Generate a filename based on media subtype and counter
-        major_type = m.group(1).decode()
-        minor_type = m.group(2).decode()
-        synthesized = f"attachment_{attachment_counter}.{minor_type.lower()}"
+        major_type: str = m.group(1).decode()
+        minor_type: str = m.group(2).decode()
+        synthesized: str = f"attachment_{attachment_counter}.{minor_type.lower()}"
         attachment_counter += 1
 
         # Replace the NIL placeholder for NAME with our synthesized parameter
-        modified_structure = re.sub(
+        modified_structure: bytes = re.sub(
             rb'\(\s*"?' + m.group(1) + rb'"?\s+"?' + m.group(2) + rb'"?\s+NIL',
             f'("{major_type}" "{minor_type}" ("NAME" "{synthesized}")'.encode(),
             structure_part,
@@ -100,7 +99,10 @@ def patch_bodystructure_line(
     return new_line, attachment_counter
 
 
-def flush_attachment_log(logger: logging.Logger, attachment_chars: int) -> int:
+def flush_attachment_log(
+    logger: logging.Logger,
+    attachment_chars: int,
+) -> int:
     """
     If any base64 attachment lines have been accumulated, log
     their total byte count and reset the counter.
@@ -115,24 +117,24 @@ async def pipe_server_to_client(
     srv_reader: asyncio.StreamReader,
     cli_writer: asyncio.StreamWriter,
     logger: logging.Logger,
-):
+) -> None:
     """
     Forwards data from the IMAP server to the client, patching BODYSTRUCTURE
     lines and masking raw attachments in logs.
     """
     logger.debug("Starting server-to-client pipe")
-    attachment_counter = 1
-    attachment_chars = 0
+    attachment_counter: int = 1
+    attachment_chars: int = 0
 
     while True:
-        line = await srv_reader.readline()
+        line: bytes = await srv_reader.readline()
         if not line:
             # Flush any remaining attachment summary, then break
             attachment_chars = flush_attachment_log(logger, attachment_chars)
             logger.info("EOF from server, closing server-to-client pipe")
             break
 
-        stripped = line.strip()
+        stripped: bytes = line.strip()
         if b"BODYSTRUCTURE" in line:
             logger.debug(f"S->P: {stripped!r}")
             line, attachment_counter = patch_bodystructure_line(
@@ -161,13 +163,13 @@ async def pipe_client_to_server(
     cli_reader: asyncio.StreamReader,
     srv_writer: asyncio.StreamWriter,
     logger: logging.Logger,
-):
+) -> None:
     """
     Forwards client commands to the IMAP server, logging them at DEBUG level.
     """
     logger.debug("Starting client-to-server pipe")
     while True:
-        line = await cli_reader.readline()
+        line: bytes = await cli_reader.readline()
         if not line:
             logger.info("EOF from client, closing client-to-server pipe")
             break
@@ -190,14 +192,18 @@ class IMAPProxy:
         remote_port: int,
         use_ssl: bool,
         debug: bool,
-    ):
-        self.listen_port = listen_port
-        self.remote_host = remote_host
-        self.remote_port = remote_port
-        self.use_ssl = use_ssl
-        self.logger = setup_logging(debug)
+    ) -> None:
+        self.listen_port: int = listen_port
+        self.remote_host: str = remote_host
+        self.remote_port: int = remote_port
+        self.use_ssl: bool = use_ssl
+        self.logger: logging.Logger = setup_logging(debug)
 
-    async def handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+    async def handle(
+        self,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter,
+    ) -> None:
         """
         Handle a new client connection: connect to upstream IMAP server,
         then start the request and response pipes.
@@ -206,7 +212,9 @@ class IMAPProxy:
         self.logger.info(f"Client connected: {addr}")
 
         try:
-            ssl_ctx = ssl.create_default_context() if self.use_ssl else None
+            ssl_ctx: Optional[ssl.SSLContext] = (
+                ssl.create_default_context() if self.use_ssl else None
+            )
             srv_reader, srv_writer = await asyncio.open_connection(
                 self.remote_host, self.remote_port, ssl=ssl_ctx
             )
@@ -237,7 +245,7 @@ class IMAPProxy:
                 pass
             self.logger.info(f"Client disconnected: {addr}")
 
-    async def _serve(self):
+    async def _serve(self) -> None:
         """
         Start listening on the configured port and serve forever.
         """
@@ -246,7 +254,7 @@ class IMAPProxy:
         async with server:
             await server.serve_forever()
 
-    def run(self):
+    def run(self) -> None:
         """
         Run the proxy until interrupted (e.g. Ctrl+C).
         """
