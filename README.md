@@ -46,13 +46,15 @@ Some IMAP servers (e.g., Yahoo!) may omit the `NAME` parameter for attachment pa
 ## Repository Structure
 
 ```
-proxy-bodystructure/      # root directory
-├── proxy.py              # Main proxy implementation
-├── sample.eml            # Example email for manual testing
-├── tests/                # Unit and integration tests
-│   └── test_proxy.py     # Core functionality tests
-├── requirements-dev.txt  # Development dependencies (pytest, pyinstaller)
-└── README.md             # This documentation
+proxy-bodystructure/            # root directory
+├── proxy.py                    # Main proxy implementation
+├── test.eml                    # Example email for manual testing
+├── gmail_example_logoutput.txt # Example expected proxy log output for gmail
+├── yahoo_example_logoutput.txt # Example expected proxy log output for yahoo
+├── tests/                      # Unit and integration tests
+│   └── test_proxy.py           # Core functionality tests
+├── requirements-dev.txt        # Development dependencies (pytest, pyinstaller)
+└── README.md                   # This documentation
 ```
 
 ---
