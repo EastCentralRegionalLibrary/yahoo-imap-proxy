@@ -8,7 +8,7 @@ import tempfile
 import subprocess
 from unittest.mock import AsyncMock, Mock, call
 from pathlib import Path
-from typing import Tuple
+from typing import List, Tuple
 
 # Ensure import path is correct
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -47,107 +47,83 @@ BODYSTRUCTURE_TEST_CASES = [
 ]
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def logger():
     return setup_logging(debug=True)
 
 
 @pytest.mark.parametrize("original, expected", BODYSTRUCTURE_TEST_CASES)
-def test_patch_bodystructure_line_behavior(original, expected, logger):
+def test_patch_bodystructure_line(original: bytes, expected: bytes, logger):
     patched, _ = patch_bodystructure_line(original, 1, logger)
     assert patched == expected
 
 
-@pytest.fixture
-def make_mock_stream():
-    class MockStream:
-        def __init__(self, lines):
-            self._lines = asyncio.Queue()
-            for line in lines:
-                self._lines.put_nowait(line)
-            self._lines.put_nowait(b"")  # EOF
-
-        async def readline(self):
-            return await self._lines.get()
-
-        async def readexactly(self, n):
-            return b"x" * n
-
-    return MockStream
+# Helper to simulate asyncio.StreamReader
+class DummyStreamReader(asyncio.StreamReader):
+    def __init__(self, lines: List[bytes]):
+        super().__init__()
+        for line in lines:
+            self.feed_data(line)
+        self.feed_eof()
 
 
-@pytest.mark.asyncio
-async def test_server_to_client_patches_bodystructure(make_mock_stream, logger):
-    input_lines = [
-        BODYSTRUCTURE_TEST_CASES[0][0],
-        b"* OK Completed\r\n",
-    ]
-    expected = [
-        BODYSTRUCTURE_TEST_CASES[0][1],
-        b"* OK Completed\r\n",
-    ]
-
-    reader = make_mock_stream(input_lines)
-    writer = Mock(write=Mock(), drain=AsyncMock())
-
-    await pipe_server_to_client(reader, writer, logger)
-
-    writer.write.assert_has_calls([call(expected[0]), call(expected[1])])
-    assert writer.drain.call_count == 2
-
-
-@pytest.mark.asyncio
-async def test_server_to_client_passthrough(make_mock_stream, logger):
-    input_lines = [
-        b"* OK IMAP4rev1 Service Ready\r\n",
-        b"* FLAGS (\\Seen \\Deleted)\r\n",
-        b"* BYE Logging out\r\n",
-    ]
-
-    reader = make_mock_stream(input_lines)
-    writer = Mock(write=Mock(), drain=AsyncMock())
-
-    await pipe_server_to_client(reader, writer, logger)
-
-    writer.write.assert_has_calls([call(line) for line in input_lines])
-    assert writer.drain.call_count == len(input_lines)
-
-
-@pytest.mark.asyncio
-async def test_client_to_server_passthrough(make_mock_stream, logger):
-    input_lines = [
-        b"A001 LOGIN user pass\r\n",
-        b"A002 SELECT INBOX\r\n",
-        b"A003 LOGOUT\r\n",
-    ]
-
-    reader = make_mock_stream(input_lines)
-    writer = Mock(write=Mock(), drain=AsyncMock())
-
-    await pipe_client_to_server(reader, writer, logger)
-
-    writer.write.assert_has_calls([call(line) for line in input_lines])
-    assert writer.drain.call_count == len(input_lines)
-
-
-def make_reader(lines: list[bytes]) -> asyncio.StreamReader:
-    """Creates a StreamReader preloaded with the given lines and EOF."""
-    reader = asyncio.StreamReader()
-    for line in lines:
-        reader.feed_data(line)
-    reader.feed_eof()
-    return reader
-
-
+# Dummy writer for capturing writes
 class DummyWriter:
     def __init__(self):
-        self.written = []
+        self.written: List[bytes] = []
 
     def write(self, data: bytes):
         self.written.append(data)
 
     async def drain(self):
-        return
+        pass
+
+
+@pytest.fixture
+def make_streams():
+    """Factory to create reader/writer pair"""
+
+    def _factory(lines: List[bytes]):
+        return DummyStreamReader(lines), DummyWriter()
+
+    return _factory
+
+
+# Parameterized server->client tests
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "input_lines,expected_lines",
+    [
+        (
+            [BODYSTRUCTURE_TEST_CASES[0][0], b"* OK done\r\n"],
+            [BODYSTRUCTURE_TEST_CASES[0][1], b"* OK done\r\n"],
+        ),
+        (
+            [b"* OK hi\r\n", b"* FLAGS (\\Seen)\r\n"],
+            [b"* OK hi\r\n", b"* FLAGS (\\Seen)\r\n"],
+        ),
+    ],
+)
+async def test_pipe_server_to_client_behaviors(
+    make_streams, logger, input_lines, expected_lines
+):
+    reader, writer = make_streams(input_lines)
+    await pipe_server_to_client(reader, writer, logger)
+    assert writer.written == expected_lines
+
+
+# Parameterized client->server tests
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "input_lines",
+    [
+        ([b"A001 CMD1\r\n", b"A002 CMD2\r\n", b"A003 LOGOUT\r\n"]),
+    ],
+)
+async def test_pipe_client_to_server_passthrough(make_streams, logger, input_lines):
+    reader, writer = make_streams(input_lines)
+    await pipe_client_to_server(reader, writer, logger)
+    assert writer.written == input_lines
 
 
 @pytest.mark.asyncio
@@ -155,18 +131,17 @@ async def test_mask_literal_payload(caplog):
     caplog.set_level(logging.DEBUG)
     # Simulate: marker, payload split over lines, and a normal line
     lines = [b"* 1 FETCH BODY[] {5}\r\n", b"abc", b"de\r\n", b"OK done\r\n"]
-    reader = make_reader(lines)
+    reader = DummyStreamReader(lines)
     writer = DummyWriter()
     logger = logging.getLogger("test_imap")
 
     await pipe_server_to_client(reader, writer, logger)
-
     # Check that the mask log was emitted
     assert "b'<5 bytes of attachment data>'" in caplog.text
     # Ensure payload bytes were forwarded but not logged
-    assert b"abc" in b"".join(writer.written)
-    assert "abc" not in caplog.text
-    assert "de" not in caplog.text
+    combined = b"".join(writer.written)
+    assert b"abc" in combined and b"de" in combined
+    assert "abc" not in caplog.text and "de" not in caplog.text
     # Ensure normal line is logged
     assert "b'OK done'" in caplog.text
 
