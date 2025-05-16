@@ -10,7 +10,6 @@ import asyncio
 import ssl
 import logging
 import re
-from binascii import a2b_base64, Error as _BinasciiError
 from typing import Optional, Set, Tuple
 
 
@@ -34,6 +33,9 @@ BODYSTRUCTURE_WITHOUT_NAME_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Regex to match an entire line that *is* exactly a literal‑size marker
+LITERAL_SIZE_RE = re.compile(rb"^\* \d+ FETCH .* \{(\d+)\}\r\n?$")
+
 
 def patch_bodystructure_line(
     line: bytes,
@@ -41,9 +43,12 @@ def patch_bodystructure_line(
     logger: logging.Logger,
 ) -> Tuple[bytes, int]:
     """
-    Inserts a synthetic NAME parameter into any attachment sub-part of a BODYSTRUCTURE
-    line that lacks it, preserving all other parameters. Returns the modified line
-    and updated attachment_counter.
+    Parses and modifies the BODYSTRUCTURE line to assign unique
+    identifiers to attachments. Returns the modified line and the
+    updated attachment counter.
+
+    This ensures attachments are numbered sequentially when
+    rewriting server BODYSTRUCTURE responses.
     """
     matches = list(BODYSTRUCTURE_WITHOUT_NAME_RE.finditer(line))
     if not matches:
@@ -96,62 +101,63 @@ def patch_bodystructure_line(
     return new_line, attachment_counter
 
 
-def flush_attachment_log(
-    logger: logging.Logger,
-    attachment_chars: int,
-) -> int:
-    """
-    If any base64 attachment lines have been accumulated, log
-    their total byte count and reset the counter.
-    """
-    if attachment_chars > 0:
-        logger.debug(f"S->P: b'<{attachment_chars} bytes of attachment data>'")
-        return 0
-    return attachment_chars
-
-
 async def pipe_server_to_client(
     srv_reader: asyncio.StreamReader,
     cli_writer: asyncio.StreamWriter,
     logger: logging.Logger,
 ) -> None:
     """
-    Forwards data from the IMAP server to the client, patching BODYSTRUCTURE
-    lines and masking raw attachments in logs.
+    Forwards data from the IMAP server to the client,
+    masks literal attachment payloads in logs, and
+    patches BODYSTRUCTURE lines as needed.
     """
     logger.debug("Starting server-to-client pipe")
+
+    # Maintains logical numbering of attachment order in message starting at 1
     attachment_counter: int = 1
+
+    # Tracks remaining bytes of a current literal payload to mask
     attachment_chars: int = 0
 
     while True:
         line: bytes = await srv_reader.readline()
         if not line:
-            # Flush any remaining attachment summary, then break
-            attachment_chars = flush_attachment_log(logger, attachment_chars)
+            # No more data: close the pipe
             logger.info("EOF from server, closing server-to-client pipe")
             break
 
-        stripped: bytes = line.strip()
+        # If we're in the middle of masking a literal payload,
+        # consume without logging until it's fully handled.
+        if attachment_chars > 0:
+            # Decrease remaining counter by the chunk length
+            attachment_chars -= len(line)
+            # Forward raw bytes to client, but never log contents
+            cli_writer.write(line)
+            await cli_writer.drain()
+            continue
+
+        # Not currently masking: check for BODYSTRUCTURE lines first
         if b"BODYSTRUCTURE" in line:
-            logger.debug(f"S->P: {stripped!r}")
+            logger.debug(f"S->P: {line.strip()!r}")
+            # Patch BODYSTRUCTURE (e.g., renumber attachment IDs)
             line, attachment_counter = patch_bodystructure_line(
                 line, attachment_counter, logger
             )
-            stripped = line.strip()
-        elif len(stripped) > 75:
-            try:
-                # Accumulate base64 lines for later summary
-                a2b_base64(stripped)
-                attachment_chars += len(stripped)
-            except _BinasciiError:
-                # On non-base64 or boundary, flush and log normally
-                attachment_chars = flush_attachment_log(logger, attachment_chars)
-                logger.debug(f"S->P: {stripped!r}")
-        else:
-            # Short lines, flush any base64 summary then log
-            attachment_chars = flush_attachment_log(logger, attachment_chars)
-            logger.debug(f"S->P: {stripped!r}")
 
+        # Detect the start of a literal payload
+        elif m := LITERAL_SIZE_RE.search(line):
+            # Extract the byte count to mask
+            size = int(m.group(1))
+            # Log immediately: we know exactly how many bytes are coming
+            logger.debug(f"S->P: b'<{size} bytes of attachment data>'")
+            # Initialize mask counter for the upcoming payload
+            attachment_chars = size
+
+        else:
+            # All other lines: safe to log directly
+            logger.debug(f"S->P: {line.strip()!r}")
+
+        # Always forward the current line to the client
         cli_writer.write(line)
         await cli_writer.drain()
 
@@ -248,7 +254,9 @@ class IMAPProxy:
         Start listening on the configured port and serve forever.
         """
 
-        async def track_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        async def track_client(
+            reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+        ) -> None:
             task = asyncio.create_task(self.handle(reader, writer))
             self.active_tasks.add(task)
             task.add_done_callback(self.active_tasks.discard)

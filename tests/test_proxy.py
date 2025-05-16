@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 import ssl
 import sys
@@ -127,6 +128,47 @@ async def test_client_to_server_passthrough(make_mock_stream, logger):
 
     writer.write.assert_has_calls([call(line) for line in input_lines])
     assert writer.drain.call_count == len(input_lines)
+
+
+def make_reader(lines: list[bytes]) -> asyncio.StreamReader:
+    """Creates a StreamReader preloaded with the given lines and EOF."""
+    reader = asyncio.StreamReader()
+    for line in lines:
+        reader.feed_data(line)
+    reader.feed_eof()
+    return reader
+
+
+class DummyWriter:
+    def __init__(self):
+        self.written = []
+
+    def write(self, data: bytes):
+        self.written.append(data)
+
+    async def drain(self):
+        return
+
+
+@pytest.mark.asyncio
+async def test_mask_literal_payload(caplog):
+    caplog.set_level(logging.DEBUG)
+    # Simulate: marker, payload split over lines, and a normal line
+    lines = [b"* 1 FETCH BODY[] {5}\r\n", b"abc", b"de\r\n", b"OK done\r\n"]
+    reader = make_reader(lines)
+    writer = DummyWriter()
+    logger = logging.getLogger("test_imap")
+
+    await pipe_server_to_client(reader, writer, logger)
+
+    # Check that the mask log was emitted
+    assert "b'<5 bytes of attachment data>'" in caplog.text
+    # Ensure payload bytes were forwarded but not logged
+    assert b"abc" in b"".join(writer.written)
+    assert "abc" not in caplog.text
+    assert "de" not in caplog.text
+    # Ensure normal line is logged
+    assert "b'OK done'" in caplog.text
 
 
 class MockIMAPServer:
